@@ -191,12 +191,15 @@ def ks_test(dist_fun, params, x):
 # ----------------------------------- #
 def r_sq(dist_fun, params, x):
     """
-    R-squared, or coefficient of determination is a metric for goodness-of-fit which returns the proportion of the
-    variance that is explained by the linear model of target vs. prediction.
+    R-squared, or coefficient of determination is a metric for goodness-of-fit
+    which returns the proportion of the variance that is explained by the linear
+    model of target vs. prediction.
     :param dist_fun: an object of the initialized distribution function.
-    :param params: a list of parameters defining the distribution function. If the length of parameter is lower
+    :param params: a list of parameters defining the distribution function. If
+    the length of parameter is lower
     than 3, than the parameters should be placed in the given order.
-    :param x: a number, a list, or an array of x values for computing the probabilities.
+    :param x: a number, a list, or an array of x values for computing the
+    probabilities.
     :return:
     """
     # calculate the empirical cdf
@@ -228,14 +231,17 @@ def rank_dist(x, x_censored=None, method='MLE', distributions=None, display=True
 
     :param x: a 1-D array with the data to be fitted.
     :param x_censored: a 1-D array with the right-censored data to be fitted.
-    :param method: Options: 'MLE' or 'LSQ', meaning, respectively, the Maximum Likelihood Estimation and the Least Squares
-    methods for fitting distribution laws to the data.
-    :param distributions: a list containing two or more of the available distributions: 'weibull3p', 'weibull2p',
-                        'normal', 'lognormal', 'exponential1p', 'exponential2p', 'logistic', 'loglogistic'.
-                        Default: None, i.e. all
+    :param method: Options: 'MLE' or 'LSQ', meaning, respectively, the Maximum
+    Likelihood Estimation and the Least Squares methods for fitting distribution
+    laws to the data.
+    :param distributions: a list containing two or more of the available
+    distributions: 'weibull3p', 'weibull2p', 'normal', 'lognormal',
+     'exponential1p', 'exponential2p', 'logistic', 'loglogistic'.
+     Default: None, i.e. all
     :param display: Display data frame with results. Default: True.
     :return: results: a dictionary with the results of the goodness of fit.
     """
+    x[x == 0] = 1
 
     result = dict()
 
@@ -445,8 +451,8 @@ def plot_best(ranking_all, x):
     ax[0, 1].set_ylabel('Reliability')
 
     # Probplot (similar to QQ)
-    probplot(dist_funs[dist_index[0]], params_dist_lsq, x, plot_title='LSQ', ax=ax[1, 1])
-    probplot(dist_funs[dist_index[0]], params_dist_mle, x, plot_title='MLE', ax=ax[1, 0])
+    prob_plot(dist_funs[dist_index[0]], params_dist_lsq, x, plot_title='LSQ', ax=ax[1, 1])
+    prob_plot(dist_funs[dist_index[0]], params_dist_mle, x, plot_title='MLE', ax=ax[1, 0])
 
     try:
         plt.tight_layout()
@@ -544,13 +550,13 @@ class Weibull(object):
 
             raise ValueError('The size of parameters is not correct.')
 
-        x = np.array(x)
+        x = np.array(x, dtype=np.float)
 
         shape = self._params[0]
         scale = self._params[1]
         loc = self._params[2]
 
-        return np.nan_to_num(1 - np.exp(-((x - loc) / scale) ** shape))
+        return np.nan_to_num(1 - np.exp(-((np.nan_to_num(x) - loc) / scale) ** shape))
 
     # ----------------------------------- #
     #                1-CDF                #
@@ -1097,7 +1103,7 @@ class Normal(object):
     # ----------------------------------- #
     #                 fit                 #
     # ----------------------------------- #
-    def fit(self, x,
+    def fit(self, x, x_censored = None,
             method='mle'):  # TODO add method and implementation kwds (if really necessary, or for homogeneity of functions)
         r"""
         Fits the distribution to the data returning the parameters defining the Normal distribution.
@@ -1316,7 +1322,7 @@ class Lognormal(object):
     # ----------------------------------- #
     #                 fit                 #
     # ----------------------------------- #
-    def fit(self, x,
+    def fit(self, x, x_censored=None,
             method='MLE'):  # TODO add implementation kwds (if really necessary, or for homogeneity of functions)
         r"""
         Fits the distribution to the data returning the parameters defining the Log-Normal distribution.
@@ -1543,7 +1549,7 @@ class Exponential(object):
         #                 fit                 #
         # ----------------------------------- #
 
-    def fit(self, x,
+    def fit(self, x, x_censored=None,
             method='MLE'):  # TODO add implementation kwds (if really necessary, or for homogeneity of functions)
         r"""
         Fits the distribution to the data returning the parameters defining the Log-Normal distribution.
@@ -1782,7 +1788,7 @@ class Logistic(object):
         #                 fit                 #
         # ----------------------------------- #
 
-    def fit(self, x, method='MLE',
+    def fit(self, x, method='MLE', x_censored=None,
             implementation=None):  # TODO add implementation kwds (if really necessary, or for homogeneity of functions)
         r"""
         Fits the distribution to the data returning the parameters defining the Logistic distribution.
@@ -1994,7 +2000,7 @@ class Loglogistic(object):
         #                 fit                 #
         # ----------------------------------- #
 
-    def fit(self, x, method='MLE',
+    def fit(self, x, method='MLE',x_censored=None,
             implementation=None):  # TODO add implementation kwds (if really necessary, or for homogeneity of functions)
         r"""
         Fits the distribution to the data returning the parameters defining the Logistic distribution.
