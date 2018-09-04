@@ -315,8 +315,8 @@ def rank_dist(x, x_censored=None, method='MLE', distributions=None, display=True
 
             result[dist_names[dist_i]]['goodness_of_fit'] = dict()
 
-            result[dist_names[dist_i]]['goodness_of_fit']['lk'] = dist_funs[dist_i].log_lk(
-                result[dist_names[dist_i]]['params'], x)
+            result[dist_names[dist_i]]['goodness_of_fit']['lk'] = np.exp(dist_funs[dist_i].log_lk(
+                result[dist_names[dist_i]]['params'], x))
 
             result[dist_names[dist_i]]['goodness_of_fit']['ks'] = ks_test(
                 dist_funs[dist_i], result[dist_names[dist_i]]['params'], x)
@@ -634,8 +634,8 @@ class Weibull(object):
         # Uncensored probability
         prob_x = np.sum(np.log(np.nan_to_num(self.pdf(params, x))))
         # Censored probability
-        if x_censored:
-            prob_x_censored = np.sum(np.log(np.nan_to_num(self.cdf(params,
+        if not(x_censored is None):
+            prob_x_censored = np.sum(np.log(np.nan_to_num(1 - self.cdf(params,
                                                                    x_censored)))
                                      )
         else:
@@ -665,11 +665,15 @@ class Weibull(object):
         the distribution parameters.
         """
         # Uncensored probability
-        prob_x = np.sum(np.nan_to_num(self.pdf(params, x)))
-        # Censored probability
-        prob_x_censored = np.sum(np.nan_to_num(self.cdf(params, x_censored)))
+        prob_x = np.log(np.nan_to_num(self.pdf(params, x)))
 
-        return np.nansum(np.log(prob_x + prob_x_censored))
+        if x_censored is None:
+            return np.sum(prob_x)
+        else:
+        # Censored probability
+            prob_x_censored = np.log(np.nan_to_num(self.cdf(params, x_censored)))
+
+            return np.sum(prob_x) + np.sum(prob_x_censored)
 
     # ----------------------------------- #
     #                 fit                 #
@@ -737,7 +741,7 @@ class Weibull(object):
                 elif implementation.lower() == 'nano':
 
                     """ Bound assumptions:
-                    For shape (beta), a value between a small number and two is 
+                    For shape (beta), a value between a small number and four is 
                     what is wanted to fit, since in that case, the failure rate
                     is in limit slightly increasing over time.
                     
@@ -745,10 +749,12 @@ class Weibull(object):
                     measurement possible, assuming there are no decimals) and
                      the maximum of values of our failure event array. 
                     
-                    Location (gamma) has no meaning for now(...) 
+                    Location (gamma) can go from 0 (No possibility of being
+                    negative) to the maximum of values of our failure event
+                    array. 
                     """
-                    # TODO Get better assumptions for beta and gamma (ours)
-                    bounds_weibull = [(1e-6, 2), (1, np.max(x)), (0, 3 - 1e-6)]
+
+                    bounds_weibull = [(1e-6, 4), (1, np.max(x)), (0, np.max(x))]
 
                     # first globally optimize all parameter by differential
                     # evolution to avoid local minimum
@@ -765,7 +771,7 @@ class Weibull(object):
                                            # method='Nelder-Mead',
                                            bounds=bounds_weibull
                                            )
-                    print(res_opt.x)
+                    #print(res_opt.x)
                     params_global = list(res_opt.x)
 
                     # model 2) Reliasoft: ----------------
@@ -777,7 +783,7 @@ class Weibull(object):
                                          # method='L-BFGS-B',
                                          method='Nelder-Mead'
                                          )
-                    print(res_1.x)
+                    #print(res_1.x)
                     # print(res_1.success)
                     params_init = res_1.x
                     # print('Params 1): {}'.format(params_init))
@@ -803,9 +809,9 @@ class Weibull(object):
 
                     # print(res_3.success)
                     params_rs = np.append(res_3.x, loc_rs)
-                    print(params_rs)
+                    #print(params_rs)
                     p_value_global = ks_test(Weibull(), params_global, x)
-                    print(p_value_global)
+                    #print(p_value_global)
                     # make ensemble
                     params = list(
                         np.sum([(1-p_value_global) * np.array(params_rs), p_value_global * np.array(params_global)], axis=0))  # weighted sum
@@ -851,7 +857,7 @@ class Weibull(object):
 
                 res_init = opt.differential_evolution(self.neg_log_lk,
                                                       # popsize=10,
-                                                      bounds=bounds_weibull, args=(x,))
+                                                      bounds=bounds_weibull, args=(x, x_censored))
 
                 errfunc = lambda p, t, y: np.sum((self.cdf(p, t) - y) ** 2)  # sse
 
@@ -869,7 +875,7 @@ class Weibull(object):
             init_params = np.array([0, np.mean(x), np.min(x)])[self._not_params_i]
             # print('not_params:', self._not_params_i)
             # print('init_params:', init_params)
-            bounds_weibull = np.array([(1e-6, 2), (1, np.max(x)), (0, 3 - 1e-6)])[self._not_params_i]
+            bounds_weibull = np.array([(1e-6, 3), (1, np.max(x)), (0, 3 - 1e-6)])[self._not_params_i]
             # ('bounds_weibull:', bounds_weibull)
             if implementation is None:
                 implementation = 'nano'
