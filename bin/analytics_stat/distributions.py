@@ -633,15 +633,16 @@ class Weibull(object):
         """
         # Uncensored probability
         prob_x = np.sum(np.log(np.nan_to_num(self.pdf(params, x))))
+
         # Censored probability
-        if not(x_censored is None):
+        if x_censored is None:
+            return -(np.sum(prob_x))
+
+        else:
             prob_x_censored = np.sum(np.log(np.nan_to_num(1 - self.cdf(params,
                                                                    x_censored)))
                                      )
-        else:
-            prob_x_censored = 0
-
-        return -np.nansum(prob_x) - np.nansum(prob_x_censored)
+            return -np.nansum(prob_x) - np.nansum(prob_x_censored)
 
     # ----------------------------------- #
     #                log_lk               #
@@ -670,7 +671,7 @@ class Weibull(object):
         if x_censored is None:
             return np.sum(prob_x)
         else:
-        # Censored probability
+            # Censored probability
             prob_x_censored = np.log(np.nan_to_num(self.cdf(params, x_censored)))
 
             return np.sum(prob_x) + np.sum(prob_x_censored)
@@ -1057,7 +1058,7 @@ class Normal(object):
     # ----------------------------------- #
     #              neg_log_lk             #
     # ----------------------------------- #
-    def neg_log_lk(self, params, x):
+    def neg_log_lk(self, params, x, x_censored=None):
         r"""
         Computes negative sum of log-likelihood for the probability of x given the distribution parameters. This
         function is useful as a cost function for optimization problem regarding Maximum
@@ -1066,6 +1067,7 @@ class Normal(object):
 
         :param params: a list of parameters containing 1) mean and 2) standard deviation.
         :param x: a number, a list, or an array of x values for computing probability.
+        :param x_censored: a 1D array of censored data to be fitted.
         :return: negative sum of log-likelihood for the probability of x given the distribution parameters.
         """
         if len(params) == len(self._not_params_i):
@@ -1077,13 +1079,18 @@ class Normal(object):
 
         mu = self._params[0]
         std = self._params[1]
+        prob_x = stats.norm.logpdf(x, mu, std)
+        if x_censored is None:
+            return -(np.sum(prob_x))
 
-        return -np.nansum(stats.norm.logpdf(x, mu, std))
+        else:
+            prob_x_censored = stats.norm.logcdf(x_censored, mu, std)
+            return -(np.sum(prob_x))-(np.sum(prob_x_censored))
 
     # ----------------------------------- #
     #               log_lk                #
     # ----------------------------------- #
-    def log_lk(self, params, x):
+    def log_lk(self, params, x, x_censored=None):
         r"""
         Computes sum of log-likelihood for the probability of x given the distribution parameters.
          This function is useful for model validation, i.e. goodness-of-fit. The log transformation is
@@ -1091,6 +1098,7 @@ class Normal(object):
 
         :param params: a list of parameters containing 1) mean and 2) standard deviation.
         :param x: a number, a list, or an array of x values for computing probability.
+        :param x_censored: a 1D array of censored data to be fitted.
         :return: negative sum of log-likelihood for the probability of x given the distribution parameters.
         """
 
@@ -1103,8 +1111,12 @@ class Normal(object):
 
         mu = self._params[0]
         std = self._params[1]
-
-        return np.nansum(stats.norm.logpdf(x, mu, std))
+        prob_x = stats.norm.logpdf(x, mu, std)
+        if x_censored is None:
+            return np.sum(prob_x)
+        else:
+            prob_x_censored = stats.norm.logcdf(x_censored, mu, std)
+            return (np.sum(prob_x)) + (np.sum(prob_x_censored))
 
     # ----------------------------------- #
     #                 fit                 #
@@ -1122,12 +1134,15 @@ class Normal(object):
         """
 
         params = []
-
+        init_params = np.array([np.mean(x), np.std(x)])
+        bounds_normal = np.array([(0, np.max(x)), (0, np.max(x))])
         if method.lower() == 'mle':
 
             if len(self._not_params_i) == 2:
-
-                params = list(stats.norm.fit(x))
+                res_1 = opt.minimize(self.neg_log_lk, init_params, args=(x,x_censored),
+                                     method='Nelder-Mead',
+                                     bounds=bounds_normal)
+                params = list(res_1.x)
 
             elif len(self._not_params_i) == 1:
                 # [self._not_params_i]  # index of parameters to find. [mean:0, std:1]
@@ -1270,7 +1285,7 @@ class Lognormal(object):
     # ----------------------------------- #
     #              neg_log_lk             #
     # ----------------------------------- #
-    def neg_log_lk(self, params, x):
+    def neg_log_lk(self, params, x, x_censored=None):
         r"""
         Computes negative sum of log-likelihood for the probability of x given the distribution parameters. This
         function is useful as a cost function for optimization problem regarding Maximum
@@ -1294,12 +1309,17 @@ class Lognormal(object):
         # Compute and return the CDF for the given x.
         # params in scipy: [shape, loc, scale] -> our (loc is 0, as in RSoft): [log_mu, log_sigma] ->
         # Thus, to compute in scipy: [Log_sigma, 0,  np.exp(log_mu)]
-        return -np.nansum(stats.lognorm.logpdf(x, log_sigma, 0, np.exp(log_mu)))
+        prob_x = stats.lognorm.logpdf(x, log_sigma, 0, np.exp(log_mu))
+        if x_censored is None:
+            return -(np.sum(prob_x))
+        else:
+            prob_x_censored = stats.lognorm.logcdf(x_censored, log_sigma, 0, np.exp(log_mu))
+            return -(np.sum(prob_x))-(np.sum(prob_x_censored))
 
     # ----------------------------------- #
     #               log_lk                #
     # ----------------------------------- #
-    def log_lk(self, params, x):
+    def log_lk(self, params, x, x_censored=None):
         r"""
         Computes sum of log-likelihood for the probability of x given the distribution parameters.
          This function is useful for model validation, i.e. goodness-of-fit. The log transformation is
@@ -1323,7 +1343,12 @@ class Lognormal(object):
         # Compute and return the CDF for the given x.
         # params in scipy: [shape, loc, scale] -> our (loc is 0, as in RSoft): [log_mu, log_sigma] ->
         # Thus, to compute in scipy: [Log_sigma, 0,  np.exp(log_mu)]
-        return np.nansum(stats.lognorm.logpdf(x, log_sigma, 0, np.exp(log_mu)))
+        prob_x = stats.lognorm.logpdf(x, log_sigma, 0, np.exp(log_mu))
+        if x_censored is None:
+            return np.sum(prob_x)
+        else:
+            prob_x_censored = stats.lognorm.logcdf(x_censored, log_sigma, 0, np.exp(log_mu))
+            return np.sum(prob_x) + np.sum(prob_x_censored)
 
     # ----------------------------------- #
     #                 fit                 #
@@ -1345,10 +1370,13 @@ class Lognormal(object):
 
         if method.lower() == 'mle':
             if len(self._not_params_i) == 2:
+                init_params = np.array([np.mean(np.log(x),np.std(np.log(x)))])
+                bounds_lognormal = np.array([(0, np.log(np.max(x))), np.log((0, np.max(x)))])
+                res_1 = opt.minimize(self.neg_log_lk, init_params, args= (x, x_censored),
+                                     method='Nelder-Mead',
+                                     bounds=bounds_lognormal)
 
-                log_sigma, _, log_mu = list(stats.lognorm.fit(x, floc=0))
-
-                params = [np.log(log_mu), log_sigma]
+                params = list(res_1.x)
 
             elif len(self._not_params_i) == 1:
                 # [self._not_params_i]  # index of parameters to find. [mean:0, std:1]
@@ -1370,8 +1398,7 @@ class Lognormal(object):
 
             res_init = [np.log(x.mean()), np.log(x).std()]
 
-            params, _ = opt.leastsq(self.errfunc, res_init, args=(x_unique, ecdf_prob,)
-                                    )
+            params, _ = opt.leastsq(self.errfunc, res_init, args=(x_unique, ecdf_prob,))
             params = list(params)
 
             # res = opt.minimize(self.errfunc, res_init, args=(x_unique, ecdf_prob))
@@ -1499,7 +1526,7 @@ class Exponential(object):
         #              neg_log_lk             #
         # ----------------------------------- #
 
-    def neg_log_lk(self, params, x):
+    def neg_log_lk(self, params, x, x_censored=None):
         r"""
         Computes negative sum of log-likelihood for the probability of x given the distribution parameters. This
         function is useful as a cost function for optimization problem regarding Maximum
@@ -1521,13 +1548,18 @@ class Exponential(object):
         loc = self._params[1]
 
         # Compute and return the PDF for the given x.
-        return -np.nansum(stats.expon.logpdf(x, scale=scale, loc=loc))
+        prob_x = stats.expon.logpdf(x, scale=scale, loc=loc)
+        if x_censored is None:
+            return - np.sum(prob_x)
+        else:
+            prob_x_censored= stats.expon.logcdf(x_censored, scale=scale, loc=loc)
+            return - np.sum(prob_x) - np.sum(prob_x_censored)
 
         # ----------------------------------- #
         #               log_lk                #
         # ----------------------------------- #
 
-    def log_lk(self, params, x):
+    def log_lk(self, params, x, x_censored=None):
         r"""
         Computes sum of log-likelihood for the probability of x given the distribution parameters.
          This function is useful for model validation, i.e. goodness-of-fit. The log transformation is
@@ -1549,7 +1581,12 @@ class Exponential(object):
         loc = self._params[1]
 
         # Compute and return the PDF for the given x.
-        return np.nansum(stats.expon.logpdf(x, scale=scale, loc=loc))
+        prob_x = stats.expon.logpdf(x, scale=scale, loc=loc)
+        if x_censored is None:
+            return np.sum(prob_x)
+        else:
+            prob_x_censored= stats.expon.logcdf(x_censored, scale=scale, loc=loc)
+            return np.sum(prob_x) + np.sum(prob_x_censored)
 
         # ----------------------------------- #
         #                 fit                 #
@@ -1572,10 +1609,14 @@ class Exponential(object):
 
         if method.lower() == 'mle':
             if len(self._not_params_i) == 2:
+                init_params = np.array([1/np.mean(x),0])
+                bounds_exponential = np.array([(0,1/np.min(x), (0, np.max(x)))])
+                res_1 = opt.minimize(self.neg_log_lk, init_params, args= (x, x_censored),
+                                     method='Nelder-Mead',
+                                     bounds=bounds_exponential)
 
-                loc, scale = list(stats.expon.fit(x))
+                params = list(res_1.x)
 
-                params = [scale, loc]
 
             elif len(self._not_params_i) == 1:
                 # [self._not_params_i]  # index of parameters to find. [scale:0, loc:1]
@@ -1759,7 +1800,7 @@ class Logistic(object):
         #              neg_log_lk             #
         # ----------------------------------- #
 
-    def neg_log_lk(self, params, x):
+    def neg_log_lk(self, params, x, x_censored=None):
         r"""
         Computes negative sum of log-likelihood for the probability of x given the distribution parameters. This
         function is useful as a cost function for optimization problem regarding Maximum
@@ -1770,14 +1811,18 @@ class Logistic(object):
         :param x: a number, a list, or an array of x values for computing probability.
         :return: negative sum of log-likelihood for the probability of x given the distribution parameters.
         """
-
-        return -np.nansum(np.log(np.nan_to_num(self.pdf(params, x))))
+        prob_x = np.log(self.pdf(params, x))
+        if x_censored is None:
+            return -np.sum(prob_x)
+        else:
+            prob_x_censored = np.log(self.cdf(params, x_censored))
+            return -np.sum(prob_x) - np.sum(prob_x_censored)
 
         # ----------------------------------- #
         #               log_lk                #
         # ----------------------------------- #
 
-    def log_lk(self, params, x):
+    def log_lk(self, params, x, x_censored=None):
         r"""
         Computes sum of log-likelihood for the probability of x given the distribution parameters.
          This function is useful for model validation, i.e. goodness-of-fit. The log transformation is
@@ -1788,7 +1833,12 @@ class Logistic(object):
         :return: negative sum of log-likelihood for the probability of x given the distribution parameters.
         """
 
-        return np.nansum(np.log(np.nan_to_num(self.pdf(params, x))))
+        prob_x = np.log(self.pdf(params, x))
+        if x_censored is None:
+            return np.sum(prob_x)
+        else:
+            prob_x_censored = np.log(self.cdf(params, x_censored))
+            return np.sum(prob_x) + np.sum(prob_x_censored)
 
         # ----------------------------------- #
         #                 fit                 #
@@ -1822,7 +1872,7 @@ class Logistic(object):
                     loc, scale = stats.logistic.fit_loc_scale(x)  # first and second moments
                     res_init = [scale, loc]
 
-                    res_1 = opt.minimize(self.neg_log_lk, res_init, args=(x,),
+                    res_1 = opt.minimize(self.neg_log_lk, res_init, args=(x,x_censored),
                                          method='L-BFGS-B',
                                          # method='Nelder-Mead',
                                          bounds=bounds_logistic
@@ -1971,7 +2021,7 @@ class Loglogistic(object):
         #              neg_log_lk             #
         # ----------------------------------- #
 
-    def neg_log_lk(self, params, x):
+    def neg_log_lk(self, params, x, x_censored=None):
         r"""
         Computes negative sum of log-likelihood for the probability of x given the distribution parameters. This
         function is useful as a cost function for optimization problem regarding Maximum
@@ -1983,13 +2033,18 @@ class Loglogistic(object):
         :return: negative sum of log-likelihood for the probability of x given the distribution parameters.
         """
 
-        return -np.nansum(np.log(np.nan_to_num(self.pdf(params, x))))
+        prob_x = np.log(self.pdf(params, x))
+        if x_censored is None:
+            return -np.sum(prob_x)
+        else:
+            prob_x_censored = np.log(self.cdf(params, x_censored))
+            return -np.sum(prob_x) - np.sum(prob_x_censored)
 
         # ----------------------------------- #
         #               log_lk                #
         # ----------------------------------- #
 
-    def log_lk(self, params, x):
+    def log_lk(self, params, x, x_censored=None):
         r"""
         Computes sum of log-likelihood for the probability of x given the distribution parameters.
          This function is useful for model validation, i.e. goodness-of-fit. The log transformation is
@@ -2000,7 +2055,12 @@ class Loglogistic(object):
         :return: negative sum of log-likelihood for the probability of x given the distribution parameters.
         """
 
-        return np.nansum(np.log(np.nan_to_num(self.pdf(params, x))))
+        prob_x = np.log(self.pdf(params, x))
+        if x_censored is None:
+            return -np.sum(prob_x)
+        else:
+            prob_x_censored = np.log(self.cdf(params, x_censored))
+            return -np.sum(prob_x) - np.sum(prob_x_censored)
 
         # ----------------------------------- #
         #                 fit                 #
@@ -2036,7 +2096,7 @@ class Loglogistic(object):
                                                           )
 
                     # TODO review the initialization parameters. res_init.x was slow but working.
-                    res_1 = opt.minimize(self.neg_log_lk, res_init.x, args=(x,),
+                    res_1 = opt.minimize(self.neg_log_lk, res_init.x, args=(x, x_censored),
                                          method='L-BFGS-B',
                                          # method='Nelder-Mead',
                                          bounds=bounds_logistic
