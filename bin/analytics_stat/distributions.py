@@ -1370,7 +1370,7 @@ class Lognormal(object):
 
         if method.lower() == 'mle':
             if len(self._not_params_i) == 2:
-                init_params = np.array([np.mean(np.log(x),np.std(np.log(x)))])
+                init_params = np.array([np.mean(np.log(x)), np.std(np.log(x))])
                 bounds_lognormal = np.array([(0, np.log(np.max(x))), np.log((0, np.max(x)))])
                 res_1 = opt.minimize(self.neg_log_lk, init_params, args= (x, x_censored),
                                      method='Nelder-Mead',
@@ -1610,7 +1610,7 @@ class Exponential(object):
         if method.lower() == 'mle':
             if len(self._not_params_i) == 2:
                 init_params = np.array([1/np.mean(x),0])
-                bounds_exponential = np.array([(0,1/np.min(x), (0, np.max(x)))])
+                bounds_exponential = np.array([(0,1/np.min(x)), (0, np.max(x))])
                 res_1 = opt.minimize(self.neg_log_lk, init_params, args= (x, x_censored),
                                      method='Nelder-Mead',
                                      bounds=bounds_exponential)
